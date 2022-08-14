@@ -1,0 +1,7 @@
+E:\VSproject\MEFLearning\MEFLearning\bin\Debug\MEFLearning.exe.config
+E:\VSproject\MEFLearning\MEFLearning\bin\Debug\MEFLearning.exe
+E:\VSproject\MEFLearning\MEFLearning\bin\Debug\MEFLearning.pdb
+E:\VSproject\MEFLearning\MEFLearning\obj\Debug\MEFLearning.csproj.AssemblyReference.cache
+E:\VSproject\MEFLearning\MEFLearning\obj\Debug\MEFLearning.csproj.CoreCompileInputs.cache
+E:\VSproject\MEFLearning\MEFLearning\obj\Debug\MEFLearning.exe
+E:\VSproject\MEFLearning\MEFLearning\obj\Debug\MEFLearning.pdb
