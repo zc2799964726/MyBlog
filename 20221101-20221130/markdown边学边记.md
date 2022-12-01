@@ -65,3 +65,20 @@ a_2x+b_2y+c_2z=d_2\\
 a_3x+b_3y+c_3z=d_3\\
 \end{cases}
 $$
+
+### 数学符号
+
+> https://blog.csdn.net/weixin_43159148/article/details/88621318
+
+### 字母字体
+
+> https://blog.csdn.net/xxliu_csdn/article/details/85926227
+
+### 希腊字母
+
+> https://www.jianshu.com/p/5b59de4bcdc7
+
+### 上下标
+
+> https://www.jianshu.com/p/3cb91436fba0
+
