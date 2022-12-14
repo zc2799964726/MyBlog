@@ -84,3 +84,34 @@ $$
 
 ### 类图
 https://www.imooc.com/wiki/markdownlesson/markdownclassdiagram.html
+
+2.2 类图中的「关系」
+类图中「类」之间的逻辑关系由连接线表示，定义的形式如：[类A][箭头][类B]:标签文字。
+
+不同的逻辑关系定义如下：
+
+|Type	|Description|
+|--|----|
+| <\|--	|  继承关系   |
+|*--|	组成关系|
+|o--|	集合关系|
+|-->|	关联关系|
+|--	|   实现连接|
+|..>|	依赖关系|
+|..\|> |	实现关系|
+|..	|   虚线连接|
+
+
+
+
+``` mermaid
+classDiagram
+    classA --|> classB : 继承
+    classC --* classD : 组成
+    classE --o classF : 集合
+    classG --> classH : 关联
+    classI -- classJ : 实线连接
+    classK ..> classL : 依赖
+    classM ..|> classN : 实现
+    classO .. classP : 虚线连接
+```
