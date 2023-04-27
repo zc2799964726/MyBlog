@@ -1955,7 +1955,101 @@ GLIBC入口函数
 
 glibc的启动过程在不同的情况下差别很大，比如静态的glibc和动态的glibc的差别，glibc用于可执行文件和用于共享库的差别，这样的差别可以组合出4种情况
 
+glibc的程序入口为_start（这个入口是由ld链接器默认的链接脚本所指定的，我们也可以通过相关参数设定自己的入口
+
+_start由汇编实现，并且和平台相关，下面可以单独看i386的_start实现：
+
+可以看到_start函数最终调用了名为__lib_start_main的函数
+
+xor %ebp, %ebp：这其实是让ebp寄存器清零
+
+xor的用处是把后面的两个操作数异或，结果存储在第一个操作数里
+
+pop %esi及mov %esp, %ecx：在调用_start前，装载器会把用户的参数和环境变量压入栈中，按照其压栈的方法，实际上栈顶的元素是argc，而接着其下就是argv和环境变量的数组
+
+环境变量表要在__libc_start_main里从argv内提取出来
+
+环境变量
+
+环境变量是存在于系统中的一些公用数据，任何程序都可以访问
+
+环境变量的格式为key=value的字符串
+
+C语言里可以使用getenv这个函数来获取环境变量信息
+
+在Windows里，可以直接在控制面板→系统→高级→环境变量查阅当前的环境变量
+
+在Linux下，直接在命令行里输入export即可
+
+可见和_start函数里的调用一致，一共有7个参数，其中main由第一个参数传入，紧接着是argc和argv（这里称为ubp_av，因为其中还包含了环境变量表）。除了main的函数指针之外，外部还要传入3个函数指针，分别是：
+
+init：main调用前的初始化工作。
+
+fini：main结束后的收尾工作。
+
+rtld_fini：和动态加载有关的收尾工作，rtld是runtime loader的缩写。
+
+最后的stack_end标明了栈底的地址，即最高的栈地址。
+
+bounded pointer
+
+GCC支持bounded类型指针（bounded指针用__bounded关键字标出，若默认为bounded指针，则普通指针用__unbounded标出
+
+这种指针占用3个指针的空间，在第一个空间里存储原指针的值，第二个空间里存储下限值，第三个空间里存储上限值
+
+__ptrvalue、__ptrlow、__ptrhigh
+
+并且要定义__BOUNDED_POINTERS__这个宏才有作用，否则这3个宏定义是空的
+
+不过，尽管bounded指针看上去似乎很有用，但是这个功能却在2003年被去掉了
+
+我们过滤掉大量信息之后，将一些关键的函数调用列出：
+__pthread_initialize_minimal();￼__cxa_atexit(rtld_fini, NULL, NULL);￼__libc_init_first (argc, argv, __environ);￼__cxa_atexit(fini, NULL, NULL);￼(*init)(argc, argv, __environ);​​
+
+这一部分进行了一连串的函数调用
+
+__cxa_atexit函数是glibc的内部函数，等同于atexit
+
+所以以参数传入的fini和rtld_fini均是用于main结束之后调用的
+
+result = main (argc, argv, __environ);￼    exit (result);
+
+其中__exit_funcs是存储由__cxa_atexit和atexit注册的函数的链表，而这里的这个while循环则遍历该链表并逐个调用这些注册的函数，由于其中琐碎代码过多，这里就不具体列出了。
+
+最后的_exit函数由汇编实现，且与平台相关，下面列出i386的实现：
+
+可见_exit的作用仅仅是调用了exit这个系统调用。也就是说，_exit调用后，进程就会直接结束
+
+我们看到在_start和_exit的末尾都有一个hlt指令，这是作什么用的呢
+
+Linux里，进程必须使用exit系统调用结束。一旦exit被调用，程序的运行就会终止，因此实际上_exit末尾的hlt不会执行，从而__libc_start_main永远不会返回，以至_start末尾的hlt指令也不会执行
+
+_exit里的hlt指令是为了检测exit系统调用是否成功。如果失败，程序就不会终止，hlt指令就可以发挥作用强行把程序给停下来
+
+而_start里的hlt的用处也是如此，但是为了预防某种没有调用exit（这里指的不是exit系统调用）就回到_start的情况（例如有人误删了__libc_main_start末尾的exit
+
+MSVC CRT入口函数
+
+msvc的入口函数使用了alloca，它是如何实现的。
+
+alloca函数的特点是它能够动态地在栈上分配内存，在函数退出时如同局部变量一样自动释放。
+
+在这个基础上，alloca的实现就非常简单，仅仅是将ESP减少一定数值而已
+
+11.1.3 运行库与I/O
+
+
+11.1.4 MSVC CRT的入口函数初始化
+
 ### 11.2 C/C++运行库
+
+11.2.1 C语言运行库
+
+任何一个C程序，它的背后都有一套庞大的代码来进行支撑，以使得该程序能够正常运行
+
+这套代码至少包括入口函数，及其所依赖的函数所构成的函数集合。当然，它还理应包括各种标准库函数的实现
+
+这样的一个代码集合称之为运行时库（Runtime Library）。而C语言的运行库，即被称为C运行库（CRT）。
 
 比如我们可以在不同的操作系统平台下使用fread来读取文件，而事实上fread在不同的操作系统平台下的实现是不同的，但作为运行库的使用者我们不需要关心这一点
 
