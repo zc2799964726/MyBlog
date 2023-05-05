@@ -469,3 +469,371 @@ EXCLUDE_FROM_ALL 关键字将禁用在子目录中定义的目标的默认构建
 
 3.3.2 嵌套项目
 
+上一节中，简要地提到了 add_subdirectory() 中使用的 EXCLUDE_FROM_ALL 参数。
+
+Make 文档建议，若在源码树中有这样的部件，应该在它们的 CMakeLists.txt 文件中有自己的 project() 指令，这样就可以生成自己的构建系统，并且可以独立构建。
+
+既然支持项目嵌套，是否可以以某种方式将一起构建的相关项目连接起来?
+
+3.3.3 外部项目
+
+从一个项目到另一个项目在技术上存在，CMake 将在一定程度上支持这一点
+
+我们可以使用这些工具进行的分区: 包括列表文件、添加子目录和嵌套项目。但应该如何使用它们，使我们的项目保持可维护性、易于导航和扩展呢? 要做到这一点，需要一个定义良好的项目结构。
+
+3.4. 项目结构
+
+随着项目的发展，在列表文件和源代码中查找内容变得越来越困难
+
+所以，一个好的项目结构意味着什么呢? 我们可以从软件开发的其他领域 (例如，系统设计) 借鉴一些规则。
+
+项目应具备以下特点:
+
+• 易导航和扩展• 自包含——例如，特定于项目的文件应该在项目目录中，而不在其他目录中。• 抽象层次结构应该通过可执行文件和二进制文件来表示。
+
+本项目具有以下组件的目录:• cmake: 宏和函数，查找模块和一次性脚本• src: 将存储的二进制文件和库的源代码• doc: 用于构建文档• extern: 从源代码构建的外部项目的配置• test: 包含自动测试的代码
+
+3.5. 环境范围
+
+3.5.1 识别操作系统
+
+很多情况下，了解目标操作系统是很有用的。即使是像文件系统这样普通的东西，Windows 和Unix 在大小写敏感、文件路径结构、扩展名、特权等方面也有很大的不同
+
+统上的大多数命令在另一个系统上是不可用的，或者可以以不同的方式命名 (即使是用一个字母命名——例如，ifconfig和 ipconfig 命令)。
+
+若需要用一个 CMake 脚本支持多个目标操作系统，只要检查CMAKE_SYSTEM_NAME 变量，就可以采取相应的行动
+
+if(CMAKE_SYSTEM_NAME STREQUAL “Linux”)message(STATUS “Doing things the usual way”)elseif(CMAKE_SYSTEM_NAME STREQUAL “Darwin”)message(STATUS “Thinking differently”)elseif(CMAKE_SYSTEM_NAME STREQUAL “Windows”)message(STATUS “I’m supported here too.”)
+
+3.5.2 交叉编译——主机系统和目标系统?
+
+在一台机器上编译要在另一台机器上运行的代码，称为交叉编译
+
+可以 (使用正确的工具集) 通过在 Windows 机器上运行 CMake 来编译 Android 应用程序。交叉编译不在本书的讨论范围内，但是理解它如何影响 CMake 的某些部分是很重要的
+
+允 许 交 叉 编 译 的 必 要 步 骤 之 一 是 将CMAKE_SYSTEM_NAME和CMAKE_SYSTEM_VERSION 变量设置为适合为目标编译的操作系统的值(CMAKE 文档将其称为目标系统)
+
+3.5.3 简化变量
+
+CMake 将预定义一些变量，这些变量将提供关于主机和目标系统的信息
+
+若使用特定的系统，则将适当的变量设置为非 false 值 (即 1 或 true):
+
+• ANDROID, APPLE, CYGWIN, UNIX, IOS, WIN32, WINCE, WINDOWS_PHONE• CMAKE_HOST_APPLE,CMAKE_HOST_SOLARIS,CMAKE_HOST_UNIX,CMAKE_HOST_WIN32对于 32 和 64 位版本的 Windows 和 MSYS，WIN32 和 CMAKE_HOST_WIN32 变量将为真 (此值为遗留原因保留)。此外，UNIX 将适用于 Linux、macOS 和 Cygwin。
+
+3.5.4 主机系统信息
+
+CMake 可以提供更多变量，但为了节省时间，不会查询环境中很少需要的信息，比如处理器是否支持 MMX 或总物理内存是多少
+
+这并不意味着这个信息不可用——只需要用下面的命令显式地进行:
+
+cmake_host_system_information(RESULT <VARIABLE> QUERY <KEY> … ) 需要提供一个目标变量和感兴趣的键的列表。若只提供一个键，则变量将只包含一个值; 否则，它将是一个值列表。
+
+#### 3.5.5 平台是 32 位还是 64 位架构?
+
+3.5.5 平台是 32 位还是 64 位架构?
+
+这个信息可以通过CMAKE_SIZEOF_VOID_P 变量获得，它将包含 64 位的值 8(因为指针是 8 字节宽的) 和 32 位的值 4(4 字节):if(CMAKE_SIZEOF_VOID_P EQUAL 8)message(STATUS “Target is 64 bits”)endif()
+
+3.5.6 系统的端序
+
+架构可以是大端的，也可以是小端的。端序是字的字节顺序或处理器的自然数据单位。大端存储系统将最高位字节存储在最低内存地址，将最低位字节存储在最高内存地址。小端系统正好相反。
+
+大多数情况下，字节顺序并不重要，但当编写需要可移植的位代码时，CMake 将为你提供一个BIG_ENDIAN 或 LITTLE_ENDIAN 值存储在 CMAKE_<lang>_BYTE_ORDER 变量中，其中 <lang> 为 C、CXX、OBJC 或 CUDA。
+
+3.6. 配置工具链
+
+工具链包含构建和运行应用程序时使用的所有工具——例如，工作环境、生成器、CMake 可执行程序本身和编译器。
+
+当构建因一些编译和语法错误而停止时，缺乏经验的用户会有什么感受。他们必须深入研究源代码，并试图理解发生了什么。经过一个小时的调试后，发现正确的解决方案是更新编译器。
+
+3.6.1 设定 C++ 标准
+
+从 C++11 正式发布到现在已经 10 年了，它不再认为是现代 C++ 标准。不建议使用此版本启动项目，除非目标环境非常旧
+
+坚持旧标准的另一个原因是，若正在构建难以升级的历史项目
+
+通常，升级标准不会遇到任何问题
+
+可以在每个目标的基础上覆写:set_property(TARGET <target> PROPERTY CXX_STANDARD <standard>)
+
+3.6.2 坚持支持标准
+
+要求目标的标准:set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+3.6.3 特定于供应商的扩展
+
+这么说吧，对于一些编译器生产者的需求，C++ 标准的发展有点慢，所以他们决定在语言中添加他们自己的增强——也可以叫插件。为了实现这一点，CMake 会将-std=gnu++14，而不是-std=c++14 添加到编译行。
+
+> 一方面，因为它允许一些方便的功能，这可能是需要的。但另一方面，若切换到另一个编译器(或者您的用户切换到另一个编译器!)，代码可能无法构建。
+
+==确实，交叉编译的时候用到的stl在不同编译环境下，就是不可兼容==
+
+这也是一个每个目标的属性，它有一个默认变量 CMAKE_CXX_EXTENSIONS。CMake 在这里更加自由，并且允许扩展，除非我们告诉它不要这样做:set(CMAKE_CXX_EXTENSIONS OFF)
+
+3.6.4 过程间优化
+
+通常，编译器在单个翻译单元的级别上优化代码，所以.cpp 文件会进行预处理、编译，然后进行优化
+
+稍后，这些文件将传递给链接器以构建一个二进制文件。现代编译器可以在链接之后执行优化 (这称为链接时优化)，以便所有编译单元都可以作为单个模块进行优化
+
+需 要 设 置 的 默 认 变 量 叫 做CMAKE_INTERPROCEDURAL_OPTIMIZATION。 在 设 置 它 之 前， 需 要 确保 支 持， 以 避 免 错误:include(CheckIPOSupported)check_ipo_supported(RESULT ipo_supported)if(ipo_supported)set(CMAKE_INTERPROCEDURAL_OPTIMIZATION True)endif()必须包含一个内置模块来访问 check_ipo_supported() 指令。
+
+3.6.5 检查支持的编译器特性
+
+ 们 特 别 感 兴趣 的 是 衡 量 支 持 哪 些 C++ 特 性 (哪 些 不 支 持)。CMake 会 在 配 置 阶 段 询问 编 译 器， 并 在CMAKE_CXX_COMPILE_FEATURES 变量中存储可用特性的列表
+
+# chapter03/07-features/CMakeLists.txtlist(FIND CMAKE_CXX_COMPILE_FEATUREScxx_variable_templates result)if(result EQUAL -1)message(FATAL_ERROR “I really need variable templates.”) endif()
+
+3.6.6 编译测试文件
+
+用 GCC 4.7.x 编译一个应用程序时，我想到了一个特别有趣的场景。我已经在编译器的参考中手动确认，使用的所有 C++11 特性都得到了支持
+
+然而，解决方案仍然不能正常工作
+
+代码静默地忽略了对标准 <regex> 头文件。结果是 GCC 4.7.x 有一个 bug，正则表达式库没有实现
+
+没有检查可以保护您不受这种错误的影响，但是可以通过创建一个测试文件来减少这种行为，该文件可以填充您想要检查的所有特性
+
+CMake 提供了两个配置时间命令，try_compile() 和 try_run()，以验证目标平台上支持所需的一切。
+
+第二个命令提供了更多的自由，因为可以确保代码不仅在编译，而且在正确地执行 (可以测试regex 是否在工作)
+
+当然，这不适用于交叉编译场景 (因为主机无法运行为不同目标构建的可执行文件)
+
+3.7. 禁用内构建
+
+接下来，将详细解释工具链从目标构建二进制工件所采取的所有步骤
+
+这是许多关于 C++ 的书籍所遗漏的部分: 如何正确配置和使用预处理器、编译器和链接器，以及如何优化其行为。
+
+最后，将介绍 CMake 提供的管理依赖关系的所有不同方法，并将解释如何选择最佳方式。
+
+第 4 章 使用目标
+
+“工件”这个不准确的词，是因为 CMake 不限制只生成可执行文件或库。实际上，可以使用生成的构建系统来创建多种类型的输出: 更多的源文件、头文件、目标文件、存档和配置文件——可以是任何东西。所需要的只是一个命令行工具 (如编译器)、可选的输入文件和一个输出路径。
+
+目标是一个非常强大的概念，极大地简化了项目的构建。理解其如何工作，以及如何以最优雅和干净的方式配置它们非常重要
+
+本章中，我们将讨论以下主题:• 目标的概念• 编写自定义命令• 生成器表达式
+
+4.1. 相关准备
+
+4.2. 目标的概念
+
+若曾经使用过 GNU Make，应该已经了解过目标的概念。本质上，它是构建系统用来将文件列表编译为另一个文件的一个方式
+
+它可以是一个编译成.o 对象文件的.cpp 实现文件，一组打包成.o静态库的.o 文件，以及许多其他组合
+
+然而，CMake 可以节省时间，跳过这些食谱的中间步骤，其可以在更高的抽象级别上工作
+
+CMake 会理解如何直接从源文件构建可执行文件。因此，不需要编写显式的配方来编译任何目标文件
+
+所需要的只是一个 add_executable() 指令，该指令带有可执行目标的名称和将成为其元素的文件列表:add_executable(app1 a.cpp b.cpp c.cpp)
+
+生成步骤中，CMake 将创建一个构建系统，并将其填充为方案编译每个源文件，并将它们链接到单个二进制可执行文件中
+
+在 CMake 中，可以使用以下指令创建目标:• add_executable()• add_library()• add_custom_target()
+
+前两个不言自明，在前几章中已经简要地使用过它们来构建可执行程序和库
+
+但是这些定制目标是什么呢?
+
+其允许你指定自己的命令行，在不检查输出是否最新的情况下执行，例如:
+
+• 计算其他二进制文件的校验和。• 运行代码消毒程序并收集结果。• 向数据处理管道发送编译报告。
+
+下面是 add_custom_target() 指令的完整签名:
+
+add_custom_target(Name [ALL] [command1 [args1…]][COMMAND command2 [args2…] …][DEPENDS depend depend depend … ][BYPRODUCTS [files…]][WORKING_DIRECTORY dir][COMMENT comment][JOB_POOL job_pool][VERBATIM] [USES_TERMINAL][COMMAND_EXPAND_LISTS][SOURCES src1 [src2…]])
+
+定制目标的一个好的用例，可能是需要在每个构建中删除特定的文件——例如，以确保代码覆盖率报告不包含过时的数据
+
+需要做的就是像这样定义一个自定义目标:add_custom_target(clean_stale_coverage_filesCOMMAND find . -name “*.gcda” -type f -delete)上面的命令将搜索所有扩展名为.gcda 的文件，并删除它们。不过有一个问题; 与可执行目标和库目标不同，自定义目标只有添加到依赖关系图中才会构建
+
+成熟的应用通常是由许多组件构建，这里指的不是外部依赖关系。具体来说是内部库
+
+从结构的角度来看，将它们添加到项目中是有用的，可以将相关的东西打包在一个逻辑实体中，还可以链接到其他目标——另一个库或可执行文件
+
+这个项目中，有两个库、两个可执行程序和一个自定义目标。这里的用例是为用户提供一个银行应用，该应用程序具有一个漂亮的 GUI(GuiApp)，以及一个命令行版本，可作为自动化脚本(TerminalApp) 的一部分使用
+
+两个可执行程序都依赖于相同的计算库，但只有一个需要绘图库
+
+为了确保应用程序下载正确，将计算一个校验和，将其存储在一个文件中，并通过单独的安全通道分发它
+
+CMake 在为这样的解决方案编写列表文件时非常灵活
+
+chapter04/01-targets/CMakeLists.txtcmake_minimum_required(VERSION 3.19.2)project(BankApp CXX)add_executable(terminal_app terminal_app.cpp)add_executable(gui_app gui_app.cpp)target_link_libraries(terminal_app calculations)target_link_libraries(gui_app calculations drawing)add_library(calculations calculations.cpp)add_library(drawing drawing.cpp)add_custom_target(checksum ALLCOMMAND sh -c “cksum terminal_app>terminal.ck”COMMAND sh -c “cksum gui_app>gui.ck”BYPRODUCTS terminal.ck gui.ckCOMMENT “Checking the
+
+sums…”)
+
+使用 target_link_libraries() 指令将库与可执行文件连接起来。若没有它，可执行文件的编译将会因为未定义的符号而失败
+
+我们在实际声明库之前调用了这个命令。当 CMake 配置项目时，其会收集关于目标，及其属性的信息——名称、依赖项、源文件和其他信息。解析所有文件之后，CMake 将尝试构建一个依赖图。和所有有效的依赖图一样，它们是有向无环图
+
+有着一个明确的方向，确定哪个目标依赖于哪个目标，不过这样的依赖不能形成环
+
+当在构建模式下执行 cmake 时，生成的构建系统将检查已经定义的顶级目标并递归构建它们的依赖项
+
+1. 从顶部开始，构建第 1 组中的两个库。
+
+2. 计算和绘图库完成后，构建组 2 - GuiApp 和 TerminalApp。
+
+3. 构建一个校验和目标，运行指定的命令行生成校验和 (cksum 是一个 Unix 校验和工具)。
+
+有一个小问题——前面的解决方案并不能保证在可执行文件之后构建校验和目标。CMake 不知道校验和依赖于当前的可执行二进制文件，所以可以自由地开始构建
+
+为了解决这个问题，可以把add_dependencies() 指令放在文件的末尾:add_dependencies(checksum terminal_app gui_app)
+
+这将确保 CMake 理解 Checksum 目标和可执行程序之间的关系
+
+不过 target_link_libraries() 和 add_dependencies() 之间有什么区别呢?
+
+第一个用于与实际库一起使用，并允许控制属性传播
+
+第二种方法只能用于顶层目标，以设置它们的构建顺序
+
+随着项目变得越来越复杂，依赖树变得越来越难以理解。如何简化这个过程?
+
+4.2.2 可视化的依赖性
+
+即使是小项目也很有难和与其他开发人员直接分享。最简单的方法是通过一个漂亮的图表
+
+毕竟，一张图片胜过千言万语
+
+我们可以自己做这个工作并画一个图表，就像图 4.1中所做的那样。但这很没意思，而且需要不断更新
+
+幸运的是，CMake 有一个很好的模块来生成点/graphviz 格式的依赖关系图。它支持内部和外部依赖关系!
+
+cmake —graphviz=test.dot .
+
+但是几乎没有人喜欢创建文档——现在，不需要自己来做了!
+
+4.2.3 目标属性
+
+目标具有类似于 C++ 对象字段的工作方式的属性。可以修改其中一些属性，而其他属性只读。
+
+CMake 定义了一个很大的“已知属性”列表 (参见扩展阅读部分)，这些属性取决于目标的类型 (可执行、库或自定义)，还可以添加自己的属性
+
+使用以下命令操作目标器的属性:get_target_property(<var> <target> <property-name>)set_target_properties(<target1> <target2> …PROPERTIES <prop1-name> <value1><prop2-name> <value2> …)
+
+要在屏幕上打印目标属性，需要将其存储在 <var> 变量中，然后 message() 将其发送给用户，需要一个个地读取
+
+另外面，在目标上设置属性可以在多个目标上同时指定多个属性。属性的概念并非目标所独有。CMake 还支持设置其他作用域的属性:GLOBAL、DIRECTORY、SOURCE、INSTALL、TEST 和 CACHE
+
+要操作所有类型的属性，有 get_property() 和 set_property() 指令
+
+可以使用这些低层指令来做set_target_properties() 指令所做的事情:
+
+set_property(TARGET <target> PROPERTY <name> <value>) 最 好 尽 可 能 多 地使 用 高 级 命 令
+
+CMake 提 供 了 更 多 这 样 的 功 能， 范 围 甚 至 更 窄， 比如 在 目 标 上 设 置 特 定 的 属 性。 例 如，add_dependencies(<target> <dep>) 将依 赖 项 附 加 到MANUALLY_ADDED_DEPENDENCIES 目 标 属 性 中。 可 以 使 用get_target_property() 查 询， 就像 使 用 其 他 属 性 一 样。
+
+CMake 中 使 用add_dependencies() 指令只能进行追加操作
+
+接下来的章节中讨论编译和链接时，将介绍更多的属性设置命令。同时，我们会了解到一个目标的属性如何转换到另一个目标。
+
+4.2.4 可传递需求
+
+“传递性使用需求”是 CMake 文档中的神秘的主题之一
+
+我将从解释这个谜题的中间部分开始，一个目标可能依赖于另一个目标。CMake 文档有时将这种依赖关系称为“使用”，例如在一个目标中使用另一个目标
+
+某些情况下，这样的已用目标具有使用目标必须满足的特定需求: 链接一些库，包含一个目录，或要求特定的编译特性
+
+问题是在文档的其他上下文中都不称其为需求。当为单个目标指定相同的需求时，可以设置属性或依赖项。因此，名称的最后一部分可能应该简单地称为“属性”
+
+最后一部分是传递，我相信这一点是正确的 (也许有点太聪明了)。CMake 将使用目标的一些属性/需求附加到使用它们的目标的属性中
+
+来看一个具体的例子，来理解其为什么会存在，以及如何工作的:
+
+target_compile_definitions(<source> <INTERFACE|PUBLIC|PRIVATE> [items1…])
+
+这个目标命令将填充 <source> 目标的 COMPILE_DEFINITIONS 属性
+
+有趣的是第二个论点，需要指定三个值 INTERFACE、PUBLIC 或 PRIVATE 中的一个，以控制应该将属性传递给哪个目标。
+
+传递关键字的工作原理如下:• PRIVATE 设置源目标的属性。• INTERFACE 设置相关目标的属性。• PUBLIC 设置源和相关目标的属性。
+
+当不将属性传递到其他目标时，可以将其设置为 PRIVATE。
+
+当需要这样的传递时，使用 PUBLIC
+
+若源目标在其实现 (.cpp 文件) 中不使用该属性，而只在头文件中使用该属性，这些属性会传递给消费者目标，那么就使用INTERFACE。
+
+在配置阶段，CMake 将读取源目标的接口属性，并将其内容附加到目标目标
+
+在 CMake 3.20 中，可以使用 target_link_options() 或直接使用 set_target_properties()指令管理 12个这样的属性:
+
+• AUTOUIC_OPTIONS• COMPILE_DEFINITIONS• COMPILE_FEATURES• COMPILE_OPTIONS• INCLUDE_DIRECTORIES• LINK_DEPENDS• LINK_DIRECTORIES• LINK_LIBRARIES• LINK_OPTIONS• POSITION_INDEPENDENT_CODE• PRECOMPILE_HEADERS• SOURCES
+
+propagation(传播) 关键字的工作原理如下:• PRIVATE 将源附加到目标的私有属性。• INTERFACE 将源附加到目标的接口属性。• PUBLIC 包括以上两种属性的特点。
+
+若正确地为源目标设置了 propagation(传播) 关键字，属性将自动传递到目的目标上——除非有冲突……
+
+4.2.5 处理冲突的传播属性
+
+当目标依赖于多个其他目标时，可能会出现传播属性彼此完全冲突的情况。假设一个使用的目标指定 POSITION_INDEPENDENT_CODE 属性为 True，另一个为 False。CMake 将此理解为冲突
+
+极少数情况下，这可能会变得很重要——例如，若在多个目标中使用相同的库构建软件，然后链接到单个可执行文件
+
+若这些源目标使用同一个库的不同版本，可能会遇到问题。
+
+为了确保只使用相同的特定版本，可以创建一个自定义接口属性INTERFACE_LIB_VERSION，并将版本存储在那里。这还不足以解决问题，因为 CMake 在默认情况下不会传播自定义属性，必须显式地将自定义属性添加到“兼容”属性列表中。
+
+每个目标都有 4 个这样的列表:• COMPATIBLE_INTERFACE_BOOL• COMPATIBLE_INTERFACE_STRING• COMPATIBLE_INTERFACE_NUMBER_MAX• COMPATIBLE_INTERFACE_NUMBER_MIN将属性附加到其中一个，将触发传播和兼容性检查。
+
+OOL 列表将检查传播到目标目标的所有属性是否计算为相同的布尔值。类似地，STRING 将求值为字符串。NUMBER_MAX 和 NUMBER_MIN有点不同——传播值不需要匹配，但目标只会接收最高或最低的值。
+
+# chapter04/02-propagated/CMakeLists.txtcmake_minimum_required(VERSION 3.20.0)project(PropagatedProperties CXX)add_library(source1 empty.cpp)set_property(TARGET source1 PROPERTY INTERFACE_LIB_VERSION4)set_property(TARGET source1 APPEND PROPERTYCOMPATIBLE_INTERFACE_STRING LIB_VERSION)add_library(source2 empty.cpp)set_property(TARGET source2 PROPERTY INTERFACE_LIB_VERSION4)add_library(destination empty.cpp)target_link_libraries(destination source1 source2)
+
+这里创建了三个目标，所有文件都使用相同的空源文件。两个源目标上，用INTERFACE_前缀指定自定义属性。将它们设置为相同的匹配库版本。两个源目标都链接到目标目标。最后，指定一个 STRING 兼容性要求作为 source1 的属性 (没有在这里添加 INTERFACE_前缀)。
+
+CMake 将 这 个 自 定 义 属 性 传 播 到 目 标 目 标， 并 检 查 所 有 源 目 标 的 版本 是 否 完 全 匹 配(compatibility 属性可以只在一个目标上设置)。
+
+既然了解了目标是什么，就看看其他看起来像目标，闻起来像目标，有时也像目标 (鸭子定律)。但事实证明，其并不是真正的目标
+
+4.2.6 实现伪目标
+
+导入目标
+
+若浏览了目录，就会知道将讨论 CMake 如何管理外部依赖项——其他项目、库等。导入的目标基本上是这个过程的产物
+
+CMake 可以定义它们作为 find_ package() 指令的结果。
+
+别名目标
+
+别名目标完全符合期望——不同的名称下创建对目标的另一个引用
+
+add_executable(<name> ALIAS <target>)add_library(<name> ALIAS <target>)
+
+别名目标的属性只读，并且不能安装或导出别名 (在生成的构建系统中不可见)。
+
+使用别名的理由到底是什么呢? 当项目的某些部分 (如子目录) 需要具有特定名称的目标时，就很方便了，而实际的实现可能根据情况在不同的名称下可用
+
+接口库
+
+这是一个有趣的构造——一个库不编译任何东西，而是作为一个实用工具目标。其整个概念是围绕传播属性 (传递使用需求) 构建的。
+
+接口库有两个主要用途——纯头文件库和将一堆传播的属性捆绑到一个逻辑单元中。
+
+使用 add_library(INTERFACE) 创建纯头文件库相当容易:add_library(Eigen INTERFACEsrc/eigen.h src/vector.h src/matrix.h)target_include_directories(Eigen INTERFACE$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>$<INSTALL_INTERFACE:include/Eigen>)
+
+前面的代码片段中，创建了一个具有三个头文件的特征接口库。接下来，使用生成器表达式，在导出目标时将其 include 目录设置为${CMAKE_CURRENT_SOURCE_DIR}/src，在安装目标时设置为 include/Eigen。要使用这样的库，只需要链接即可:target_link_libraries(executable Eigen)
+
+这里没有实际的链接，但是 CMake 将此命令理解为将所有 INTERFACE 属性传播到可执行目标的请求。
+
+4.2.7 构建目标
+
+这样的构建系统目标是 ALL，CMake 在默认情况下生成它来包含所有顶层列表文件目标，比如可执行文件和库 (不一定是自定义目标)。ALL 是在运行 cmake —build <build tree> 而不选择具体目标时生成的，可以通过向前面的命令添加—target <name> 参数来选择一个
+
+为了优化默认构建，可以像这样从 ALL 目标中排除它们
+
+add_executable(<name> EXCLUDE_FROM_ALL [<source>…])
+
+add_library(<name> EXCLUDE_FROM_ALL [<source>…]) 自定义目标则相反——默认情况下，排除在 ALL 目标之外，除非使用 ALL 关键字显式地定义它们，
+
+4.3. 编写自定义命令
+
+4.4. 生成器表达式
+
